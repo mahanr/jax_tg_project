@@ -194,6 +194,21 @@ def run_simulation(
     plt.savefig("taylor_green_slice.png", dpi=200)
     print("Saved: taylor_green_slice.png")
 
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+    ax1.plot(times, energies, "b-o", linewidth=2, markersize=4)
+    ax1.set_xlabel("Time")
+    ax1.set_ylabel("Kinetic Energy")
+    ax1.set_title("Energy Decay")
+    ax1.grid(True, alpha=0.3)
+    ax2.plot(times, enstrophies, "r-s", linewidth=2, markersize=4)
+    ax2.set_xlabel("Time")
+    ax2.set_ylabel("Enstrophy")
+    ax2.set_title("Enstrophy Evolution (Turbulence Growth/Decay)")
+    ax2.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig("taylor_green_diagnostics.png", dpi=200)
+    print("Saved: taylor_green_diagnostics.png")
+
     diagnostics = {
         "time": times,
         "energy": energies,
