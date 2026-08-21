@@ -56,8 +56,8 @@ class TaylorGreenTests(unittest.TestCase):
             N=8,
             dt=0.005,
             nu=0.01,
-            n_steps=4,
-            save_every=2,
+            total_time=0.02,
+            save_every_time=0.01,
             return_diagnostics=True,
         )
         self.assertTrue(bool(jnp.all(jnp.isfinite(velocity))))
@@ -87,8 +87,8 @@ class TaylorGreenTests(unittest.TestCase):
             N=8,
             dt=0.005,
             reynolds=100,
-            n_steps=4,
-            save_every=2,
+            total_time=0.02,
+            save_every_time=0.01,
         )
         self.assertTrue(bool(jnp.all(jnp.isfinite(u))))
         self.assertTrue(all(a >= b for a, b in zip(energies, energies[1:])))

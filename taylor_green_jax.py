@@ -189,8 +189,8 @@ def run_simulation(
     dt=0.005,
     nu=None,
     reynolds=None,
-    n_steps=100,
-    save_every=10,
+    total_time=0.5,
+    save_every_time=0.05,
     cfl=0.5,
     return_diagnostics=False,
 ):
@@ -202,8 +202,8 @@ def run_simulation(
         dt: Timestep (default: 0.005)
         nu: Kinematic viscosity (default: computed from reynolds=100 if reynolds not specified)
         reynolds: Reynolds number; if provided, nu is computed from it
-        n_steps: Number of time steps (default: 100)
-        save_every: Save diagnostics every N steps (default: 10)
+        total_time: Total diffusion time to simulate (default: 0.5)
+        save_every_time: Save diagnostics every this much physical time (default: 0.05)
         cfl: CFL number for timestep validation (default: 0.5)
         return_diagnostics: If True, return detailed diagnostics dict (default: False)
     
@@ -211,8 +211,13 @@ def run_simulation(
         (u, energies) if return_diagnostics=False
         (u, energies, diagnostics) if return_diagnostics=True
     """
-    if N < 4 or n_steps < 0 or save_every < 1:
-        raise ValueError("N must be at least 4, n_steps nonnegative, save_every positive")
+    if N < 4 or total_time <= 0.0 or save_every_time <= 0.0:
+        raise ValueError("N must be at least 4, total_time and save_every_time must be positive")
+    if dt <= 0.0:
+        raise ValueError("dt must be positive")
+    
+    n_steps = int(total_time / dt)
+    save_every = max(1, int(save_every_time / dt))
     
     L = 2.0 * jnp.pi
     velocity_amplitude = 1.0
@@ -250,7 +255,7 @@ def run_simulation(
 
     elapsed = time.time() - t0
     print(f"Reynolds number: Re = {actual_reynolds:.1f}")
-    print(f"Finished {n_steps} steps in {elapsed:.3f} s")
+    print(f"Simulated time: {total_time:.3f} ({n_steps} steps) in {elapsed:.3f} s")
     print(f"Energy trace: {energies[0]:.6f} -> {energies[-1]:.6f}")
     print(f"Max divergence: {max(divergence_max):.3e}")
 
@@ -295,4 +300,4 @@ if __name__ == "__main__":
     print("JAX devices:", jax.devices())
     if not jax.devices("gpu"):
         print("WARNING: No GPU detected by JAX. Check CUDA + driver setup before scaling up.")
-    run_simulation(N=16, dt=0.005, reynolds=100, n_steps=100, save_every=10)
+    run_simulation(N=16, dt=0.005, reynolds=100, total_time=0.5, save_every_time=0.05)
