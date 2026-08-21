@@ -1,4 +1,8 @@
+import os
 import time
+
+# Let XLA request GPU memory as needed instead of reserving a large pool at startup.
+os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 
 import jax
 import jax.numpy as jnp
@@ -301,4 +305,4 @@ if __name__ == "__main__":
     print("JAX devices:", jax.devices())
     if not jax.devices("gpu"):
         print("WARNING: No GPU detected by JAX. Check CUDA + driver setup before scaling up.")
-    run_simulation(N=128, dt=0.005, reynolds=1000, total_time=10*2*jnp.pi*1000, save_every_time=0.05)
+    run_simulation(N=256, dt=0.005, reynolds=1000, total_time=10*2*jnp.pi*1000, save_every_time=0.05)
