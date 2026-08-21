@@ -300,4 +300,4 @@ if __name__ == "__main__":
     print("JAX devices:", jax.devices())
     if not jax.devices("gpu"):
         print("WARNING: No GPU detected by JAX. Check CUDA + driver setup before scaling up.")
-    run_simulation(N=16, dt=0.005, reynolds=100, total_time=0.5, save_every_time=0.05)
+    run_simulation(N=128, dt=0.005, reynolds=1000, total_time=0.5, save_every_time=0.05)
