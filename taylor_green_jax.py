@@ -252,6 +252,7 @@ def run_simulation(
             divergence_max.append(float(jnp.max(jnp.abs(spectral_divergence(u, kx, ky, kz)))))
             enstrophies.append(float(enstrophy(u, kx, ky, kz)))
             dissipations.append(float(viscous_dissipation(u, nu, kx, ky, kz)))
+            print(f"Save time step: {step + 1}, Enstrophy: {enstrophies[-1]:.6e}")
 
     elapsed = time.time() - t0
     print(f"Reynolds number: Re = {actual_reynolds:.1f}")
@@ -300,4 +301,4 @@ if __name__ == "__main__":
     print("JAX devices:", jax.devices())
     if not jax.devices("gpu"):
         print("WARNING: No GPU detected by JAX. Check CUDA + driver setup before scaling up.")
-    run_simulation(N=128, dt=0.005, reynolds=1000, total_time=0.5, save_every_time=0.05)
+    run_simulation(N=128, dt=0.005, reynolds=1000, total_time=10*2*jnp.pi*1000, save_every_time=0.05)
