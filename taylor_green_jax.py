@@ -1,0 +1,214 @@
+import time
+
+import jax
+import jax.numpy as jnp
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+jax.config.update("jax_enable_x64", True)
+
+
+def make_wavenumbers(N, L):
+    k = 2.0 * jnp.pi * jnp.fft.fftfreq(N, d=L / N)
+    kx, ky, kz = jnp.meshgrid(k, k, k, indexing="ij")
+    return kx, ky, kz
+
+
+def make_dealias_mask(N, L):
+    cutoff = (N // 3) * (2.0 * jnp.pi / L)
+    k = 2.0 * jnp.pi * jnp.fft.fftfreq(N, d=L / N)
+    mask_1d = jnp.abs(k) <= cutoff
+    return mask_1d[:, None, None] * mask_1d[None, :, None] * mask_1d[None, None, :]
+
+
+def initial_taylor_green(N, L=2.0 * jnp.pi, amp=1.0):
+    x = jnp.linspace(0.0, L, N, endpoint=False)
+    X, Y, Z = jnp.meshgrid(x, x, x, indexing="ij")
+
+    u = amp * jnp.sin(X) * jnp.cos(Y) * jnp.cos(Z)
+    v = -amp * jnp.cos(X) * jnp.sin(Y) * jnp.cos(Z)
+    w = jnp.zeros_like(u)
+
+    return jnp.stack([u, v, w], axis=0)
+
+
+def spectral_gradient(field_hat, kx, ky, kz):
+    dfdx = jnp.fft.ifftn(1j * kx * field_hat, axes=(-3, -2, -1)).real
+    dfdy = jnp.fft.ifftn(1j * ky * field_hat, axes=(-3, -2, -1)).real
+    dfdz = jnp.fft.ifftn(1j * kz * field_hat, axes=(-3, -2, -1)).real
+    return dfdx, dfdy, dfdz
+
+
+def spectral_divergence(u, kx, ky, kz):
+    u_hat = jnp.fft.fftn(u, axes=(-3, -2, -1))
+    divergence_hat = 1j * (
+        kx * u_hat[0] + ky * u_hat[1] + kz * u_hat[2]
+    )
+    return jnp.fft.ifftn(divergence_hat, axes=(-3, -2, -1)).real
+
+
+def vorticity(u, kx, ky, kz):
+    u_hat = jnp.fft.fftn(u, axes=(-3, -2, -1))
+    du_dx, du_dy, du_dz = spectral_gradient(u_hat[0], kx, ky, kz)
+    dv_dx, dv_dy, dv_dz = spectral_gradient(u_hat[1], kx, ky, kz)
+    dw_dx, dw_dy, dw_dz = spectral_gradient(u_hat[2], kx, ky, kz)
+    return jnp.stack([
+        dw_dy - dv_dz,
+        du_dz - dw_dx,
+        dv_dx - du_dy,
+    ], axis=0)
+
+
+def enstrophy(u, kx, ky, kz):
+    omega = vorticity(u, kx, ky, kz)
+    return 0.5 * jnp.mean(jnp.sum(omega * omega, axis=0))
+
+
+def viscous_dissipation(u, nu, kx, ky, kz):
+    u_hat = jnp.fft.fftn(u, axes=(-3, -2, -1))
+    gradients_squared = jnp.sum(
+        jnp.abs(1j * kx * u_hat) ** 2
+        + jnp.abs(1j * ky * u_hat) ** 2
+        + jnp.abs(1j * kz * u_hat) ** 2,
+        axis=0,
+    )
+    normalization = u.shape[-1] ** 6
+    return nu * jnp.sum(gradients_squared) / normalization
+
+
+def validate_timestep(dt, nu, kx, ky, kz, cfl=0.5, max_velocity=1.0):
+    if dt <= 0.0:
+        raise ValueError("dt must be positive")
+    if nu < 0.0:
+        raise ValueError("nu must be nonnegative")
+    if cfl <= 0.0:
+        raise ValueError("cfl must be positive")
+    if max_velocity <= 0.0:
+        raise ValueError("max_velocity must be positive")
+
+    max_wavenumber = float(jnp.max(jnp.abs(jnp.stack([kx, ky, kz]))))
+    if max_wavenumber == 0.0:
+        raise ValueError("wavenumber arrays must contain nonzero modes")
+    grid_spacing = jnp.pi / max_wavenumber
+    advective_limit = cfl * grid_spacing / max_velocity
+    k2_max = float(jnp.max(kx * kx + ky * ky + kz * kz))
+    diffusive_limit = jnp.inf if nu == 0.0 else 2.0 / (nu * k2_max)
+    limit = float(jnp.minimum(advective_limit, diffusive_limit))
+    if dt > limit:
+        raise ValueError(
+            f"dt={dt:g} exceeds stability limit {limit:g}; "
+            "reduce dt or increase cfl"
+        )
+    return limit
+
+
+def spectral_rhs(u, nu, kx, ky, kz, dealias_mask):
+    u_hat = jnp.fft.fftn(u, axes=(-3, -2, -1))
+    u_hat = u_hat * dealias_mask
+    k2 = kx * kx + ky * ky + kz * kz
+    k2_safe = jnp.where(k2 == 0.0, 1.0, k2)
+
+    ux, uy, uz = u
+    du_dx, du_dy, du_dz = spectral_gradient(u_hat[0], kx, ky, kz)
+    dv_dx, dv_dy, dv_dz = spectral_gradient(u_hat[1], kx, ky, kz)
+    dw_dx, dw_dy, dw_dz = spectral_gradient(u_hat[2], kx, ky, kz)
+
+    nlin = jnp.stack([
+        ux * du_dx + uy * du_dy + uz * du_dz,
+        ux * dv_dx + uy * dv_dy + uz * dv_dz,
+        ux * dw_dx + uy * dw_dy + uz * dw_dz,
+    ], axis=0)
+
+    nlin_hat = jnp.fft.fftn(nlin, axes=(-3, -2, -1)) * dealias_mask
+    kdotn = kx * nlin_hat[0] + ky * nlin_hat[1] + kz * nlin_hat[2]
+    nlin_proj = nlin_hat - jnp.stack([
+        kx * kdotn / k2_safe,
+        ky * kdotn / k2_safe,
+        kz * kdotn / k2_safe,
+    ], axis=0)
+
+    rhs_hat = -nlin_proj - nu * k2 * u_hat
+    return jnp.fft.ifftn(rhs_hat, axes=(-3, -2, -1)).real
+
+
+@jax.jit
+def advance_one_step(u, dt, nu, kx, ky, kz, dealias_mask):
+    # SSP-RK3 keeps each nonlinear evaluation projected and dealiased.
+    rhs_1 = spectral_rhs(u, nu, kx, ky, kz, dealias_mask)
+    u_1 = u + dt * rhs_1
+    rhs_2 = spectral_rhs(u_1, nu, kx, ky, kz, dealias_mask)
+    u_2 = 0.75 * u + 0.25 * (u_1 + dt * rhs_2)
+    rhs_3 = spectral_rhs(u_2, nu, kx, ky, kz, dealias_mask)
+    return (u + 2.0 * (u_2 + dt * rhs_3)) / 3.0
+
+
+def kinetic_energy(u):
+    return 0.5 * jnp.mean(u[0] ** 2 + u[1] ** 2 + u[2] ** 2)
+
+
+def run_simulation(
+    N=16,
+    dt=0.005,
+    nu=0.01,
+    n_steps=100,
+    save_every=10,
+    cfl=0.5,
+    return_diagnostics=False,
+):
+    if N < 4 or n_steps < 0 or save_every < 1:
+        raise ValueError("N must be at least 4, n_steps nonnegative, save_every positive")
+    L = 2.0 * jnp.pi
+    kx, ky, kz = make_wavenumbers(N, L)
+    dealias_mask = make_dealias_mask(N, L)
+    u = initial_taylor_green(N, L=L, amp=1.0)
+    validate_timestep(dt, nu, kx, ky, kz, cfl, max_velocity=float(jnp.max(jnp.abs(u))))
+
+    times = [0.0]
+    energies = [float(kinetic_energy(u))]
+    divergence_max = [float(jnp.max(jnp.abs(spectral_divergence(u, kx, ky, kz))))]
+    enstrophies = [float(enstrophy(u, kx, ky, kz))]
+    dissipations = [float(viscous_dissipation(u, nu, kx, ky, kz))]
+    t0 = time.time()
+
+    for step in range(n_steps):
+        u = advance_one_step(u, dt, nu, kx, ky, kz, dealias_mask)
+        if (step + 1) % save_every == 0 or step == n_steps - 1:
+            times.append((step + 1) * dt)
+            energies.append(float(kinetic_energy(u)))
+            divergence_max.append(float(jnp.max(jnp.abs(spectral_divergence(u, kx, ky, kz)))))
+            enstrophies.append(float(enstrophy(u, kx, ky, kz)))
+            dissipations.append(float(viscous_dissipation(u, nu, kx, ky, kz)))
+
+    elapsed = time.time() - t0
+    print(f"Finished {n_steps} steps in {elapsed:.3f} s")
+    print(f"Energy trace: {energies[0]:.6f} -> {energies[-1]:.6f}")
+    print(f"Max divergence: {max(divergence_max):.3e}")
+
+    sl = u[:, :, N // 2]
+    fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+    for i, ax in enumerate(axes):
+        im = ax.imshow(sl[i].T, origin="lower", cmap="viridis")
+        ax.set_title(f"u{i+1} slice")
+        fig.colorbar(im, ax=ax)
+    plt.tight_layout()
+    plt.savefig("taylor_green_slice.png", dpi=200)
+    print("Saved: taylor_green_slice.png")
+
+    diagnostics = {
+        "time": times,
+        "energy": energies,
+        "divergence_max": divergence_max,
+        "enstrophy": enstrophies,
+        "dissipation": dissipations,
+    }
+    if return_diagnostics:
+        return u, energies, diagnostics
+    return u, energies
+
+
+if __name__ == "__main__":
+    print("JAX devices:", jax.devices())
+    if not jax.devices("gpu"):
+        print("WARNING: No GPU detected by JAX. Check CUDA + driver setup before scaling up.")
+    run_simulation(N=16, dt=0.005, nu=0.01, n_steps=100, save_every=10)
