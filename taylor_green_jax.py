@@ -9,6 +9,44 @@ import matplotlib.pyplot as plt
 jax.config.update("jax_enable_x64", True)
 
 
+def reynolds_to_viscosity(reynolds, velocity_amplitude=1.0, domain_length=2.0 * jnp.pi):
+    """
+    Convert Reynolds number to kinematic viscosity.
+    
+    Re = (u_amp * L) / nu  =>  nu = (u_amp * L) / Re
+    
+    Args:
+        reynolds: Reynolds number
+        velocity_amplitude: Characteristic velocity (default: 1.0)
+        domain_length: Domain size (default: 2π)
+    
+    Returns:
+        Kinematic viscosity nu
+    """
+    if reynolds <= 0:
+        raise ValueError("Reynolds number must be positive")
+    return float((velocity_amplitude * domain_length) / reynolds)
+
+
+def viscosity_to_reynolds(nu, velocity_amplitude=1.0, domain_length=2.0 * jnp.pi):
+    """
+    Convert kinematic viscosity to Reynolds number.
+    
+    Args:
+        nu: Kinematic viscosity
+        velocity_amplitude: Characteristic velocity (default: 1.0)
+        domain_length: Domain size (default: 2π)
+    
+    Returns:
+        Reynolds number
+    """
+    if nu < 0.0:
+        raise ValueError("Viscosity must be nonnegative")
+    if nu == 0.0:
+        return float('inf')
+    return float((velocity_amplitude * domain_length) / nu)
+
+
 def make_wavenumbers(N, L):
     k = 2.0 * jnp.pi * jnp.fft.fftfreq(N, d=L / N)
     kx, ky, kz = jnp.meshgrid(k, k, k, indexing="ij")
@@ -149,15 +187,46 @@ def kinetic_energy(u):
 def run_simulation(
     N=16,
     dt=0.005,
-    nu=0.01,
+    nu=None,
+    reynolds=None,
     n_steps=100,
     save_every=10,
     cfl=0.5,
     return_diagnostics=False,
 ):
+    """
+    Run 3D decaying Taylor-Green vortex simulation.
+    
+    Args:
+        N: Grid resolution (default: 16)
+        dt: Timestep (default: 0.005)
+        nu: Kinematic viscosity (default: computed from reynolds=100 if reynolds not specified)
+        reynolds: Reynolds number; if provided, nu is computed from it
+        n_steps: Number of time steps (default: 100)
+        save_every: Save diagnostics every N steps (default: 10)
+        cfl: CFL number for timestep validation (default: 0.5)
+        return_diagnostics: If True, return detailed diagnostics dict (default: False)
+    
+    Returns:
+        (u, energies) if return_diagnostics=False
+        (u, energies, diagnostics) if return_diagnostics=True
+    """
     if N < 4 or n_steps < 0 or save_every < 1:
         raise ValueError("N must be at least 4, n_steps nonnegative, save_every positive")
+    
     L = 2.0 * jnp.pi
+    velocity_amplitude = 1.0
+    
+    # Determine viscosity from either reynolds or nu
+    if reynolds is not None:
+        nu = reynolds_to_viscosity(reynolds, velocity_amplitude, L)
+    elif nu is None:
+        # Default to Re=100
+        reynolds = 100
+        nu = reynolds_to_viscosity(reynolds, velocity_amplitude, L)
+    
+    # Compute actual Reynolds number for reporting
+    actual_reynolds = viscosity_to_reynolds(nu, velocity_amplitude, L)
     kx, ky, kz = make_wavenumbers(N, L)
     dealias_mask = make_dealias_mask(N, L)
     u = initial_taylor_green(N, L=L, amp=1.0)
@@ -180,6 +249,7 @@ def run_simulation(
             dissipations.append(float(viscous_dissipation(u, nu, kx, ky, kz)))
 
     elapsed = time.time() - t0
+    print(f"Reynolds number: Re = {actual_reynolds:.1f}")
     print(f"Finished {n_steps} steps in {elapsed:.3f} s")
     print(f"Energy trace: {energies[0]:.6f} -> {energies[-1]:.6f}")
     print(f"Max divergence: {max(divergence_max):.3e}")
@@ -225,4 +295,4 @@ if __name__ == "__main__":
     print("JAX devices:", jax.devices())
     if not jax.devices("gpu"):
         print("WARNING: No GPU detected by JAX. Check CUDA + driver setup before scaling up.")
-    run_simulation(N=16, dt=0.005, nu=0.01, n_steps=100, save_every=10)
+    run_simulation(N=16, dt=0.005, reynolds=100, n_steps=100, save_every=10)

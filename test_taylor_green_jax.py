@@ -6,6 +6,8 @@ from taylor_green_jax import (
     initial_taylor_green,
     make_dealias_mask,
     make_wavenumbers,
+    reynolds_to_viscosity,
+    viscosity_to_reynolds,
     run_simulation,
     spectral_divergence,
     spectral_rhs,
@@ -71,6 +73,29 @@ class TaylorGreenTests(unittest.TestCase):
         velocity = initial_taylor_green(N, LENGTH)
         updated = advance_one_step(velocity, 0.005, 0.01, kx, ky, kz, mask)
         self.assertTrue(bool(jnp.all(jnp.isfinite(updated))))
+
+    def test_reynolds_number_conversion(self):
+        L = 2.0 * jnp.pi
+        amp = 1.0
+        re = 100.0
+        nu = reynolds_to_viscosity(re, amp, L)
+        re_back = viscosity_to_reynolds(nu, amp, L)
+        self.assertAlmostEqual(re, re_back, places=10)
+
+    def test_run_with_reynolds_number(self):
+        u, energies = run_simulation(
+            N=8,
+            dt=0.005,
+            reynolds=100,
+            n_steps=4,
+            save_every=2,
+        )
+        self.assertTrue(bool(jnp.all(jnp.isfinite(u))))
+        self.assertTrue(all(a >= b for a, b in zip(energies, energies[1:])))
+
+    def test_reynolds_must_be_positive(self):
+        with self.assertRaisesRegex(ValueError, "Reynolds number must be positive"):
+            reynolds_to_viscosity(-100)
 
 
 if __name__ == "__main__":
