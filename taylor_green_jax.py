@@ -134,13 +134,12 @@ def spectral_rhs(u, nu, kx, ky, kz, dealias_mask):
 
 @jax.jit
 def advance_one_step(u, dt, nu, kx, ky, kz, dealias_mask):
-    # SSP-RK3 keeps each nonlinear evaluation projected and dealiased.
+    # RK4 (4th-order Runge-Kutta) keeps each nonlinear evaluation projected and dealiased.
     rhs_1 = spectral_rhs(u, nu, kx, ky, kz, dealias_mask)
-    u_1 = u + dt * rhs_1
-    rhs_2 = spectral_rhs(u_1, nu, kx, ky, kz, dealias_mask)
-    u_2 = 0.75 * u + 0.25 * (u_1 + dt * rhs_2)
-    rhs_3 = spectral_rhs(u_2, nu, kx, ky, kz, dealias_mask)
-    return (u + 2.0 * (u_2 + dt * rhs_3)) / 3.0
+    rhs_2 = spectral_rhs(u + 0.5 * dt * rhs_1, nu, kx, ky, kz, dealias_mask)
+    rhs_3 = spectral_rhs(u + 0.5 * dt * rhs_2, nu, kx, ky, kz, dealias_mask)
+    rhs_4 = spectral_rhs(u + dt * rhs_3, nu, kx, ky, kz, dealias_mask)
+    return u + (dt / 6.0) * (rhs_1 + 2.0 * rhs_2 + 2.0 * rhs_3 + rhs_4)
 
 
 def kinetic_energy(u):
