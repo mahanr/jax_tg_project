@@ -20,6 +20,12 @@ python taylor_green_cuda.py --n 128 --dt 0.005 --reynolds 1000 --total-time 1.0 
 The Python solver prints saved time steps and enstrophy, and writes
 `taylor_green_cuda_slice.png` and `taylor_green_cuda_diagnostics.png`.
 
+The same solver can be launched through its package CLI:
+
+```powershell
+python -m taylor_green_cuda --n 128 --dt 0.005 --reynolds 1000 --total-time 1.0 --save-every-time 0.05
+```
+
 `taylor_green_cuda.cu` is a standalone CUDA/cuFFT implementation of the 3D decaying Taylor-Green vortex. It uses `float32`, RK4 time integration, Fourier 2/3 dealiasing, Leray projection, and prints saved-step enstrophy and kinetic energy.
 
 ## Windows build
