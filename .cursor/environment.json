@@ -1,0 +1,4 @@
+{
+  "name": "JAX Taylor-Green",
+  "install": "./scripts/cloud-agent-install.sh"
+}

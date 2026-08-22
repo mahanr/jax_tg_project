@@ -2,3 +2,6 @@
 __pycache__/
 *.pyc
 taylor_green_slice.png
+taylor_green_cuda_slice.png
+taylor_green_diagnostics.png
+taylor_green_cuda_diagnostics.png
