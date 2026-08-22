@@ -10,23 +10,30 @@ from taylor_green_mhd.simulation import TaylorGreenMhdSimulation
 
 
 def make_wavenumbers(n, length):
+    """Create wavenumber arrays from SpectralGrid."""
     grid = SpectralGrid(n, length)
     return grid.kx, grid.ky, grid.kz
 
 
 def make_dealias_mask(n, length):
+    """Create dealiasing mask from SpectralGrid."""
     return SpectralGrid(n, length).dealias_mask
 
 
 def initial_taylor_green_mhd(n, length=2.0 * cp.pi, magnetic_amplitude=0.5):
+    """Initialize Taylor-Green MHD velocity and magnetic fields."""
     return TaylorGreenMhdInitialCondition(length, magnetic_amplitude).create(n)
 
 
 def _operator_from_grid(grid):
+    """Create MHD spectral operator from grid."""
     return MhdSpectralOperator(grid)
 
 
-def spectral_rhs_mhd(velocity, magnetic_field, viscosity, resistivity, kx, ky, kz, dealias_mask):
+def spectral_rhs_mhd(
+    velocity, magnetic_field, viscosity, resistivity, kx, ky, kz, dealias_mask
+):
+    """Compute RHS of spectral MHD equations."""
     grid = type("GridView", (), {})()
     grid.kx, grid.ky, grid.kz = kx, ky, kz
     grid.k_squared = kx * kx + ky * ky + kz * kz
@@ -34,7 +41,10 @@ def spectral_rhs_mhd(velocity, magnetic_field, viscosity, resistivity, kx, ky, k
     return MhdSpectralOperator(grid).rhs(velocity, magnetic_field, viscosity, resistivity)
 
 
-def advance_one_step(velocity, magnetic_field, dt, viscosity, resistivity, kx, ky, kz, dealias_mask):
+def advance_one_step(
+    velocity, magnetic_field, dt, viscosity, resistivity, kx, ky, kz, dealias_mask
+):
+    """Advance MHD solution one timestep."""
     from taylor_green_mhd.integrator import MhdRK4Integrator
 
     grid = type("GridView", (), {})()
@@ -47,10 +57,12 @@ def advance_one_step(velocity, magnetic_field, dt, viscosity, resistivity, kx, k
 
 
 def kinetic_energy(velocity):
+    """Compute kinetic energy density."""
     return 0.5 * cp.mean(cp.sum(velocity * velocity, axis=0))
 
 
 def magnetic_energy(magnetic_field):
+    """Compute magnetic energy density."""
     return 0.5 * cp.mean(cp.sum(magnetic_field * magnetic_field, axis=0))
 
 
@@ -64,6 +76,7 @@ def run_simulation(
     save_every_time=0.05,
     make_plots=True,
 ):
+    """Run Taylor-Green MHD simulation with specified parameters."""
     config = TaylorGreenMhdConfig(
         n=n,
         dt=dt,
@@ -81,6 +94,7 @@ def run_simulation(
 
 
 def main():
+    """Run CLI for Taylor-Green MHD."""
     from taylor_green_mhd.cli import main as package_main
 
     package_main()

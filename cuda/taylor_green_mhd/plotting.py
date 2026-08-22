@@ -1,3 +1,5 @@
+"""Plotting utilities for Taylor-Green MHD simulation."""
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -5,15 +7,20 @@ import cupy as cp
 
 
 def save_plots(velocity, magnetic_field, diagnostics, n):
+    """Save velocity and magnetic field slices and diagnostics plots."""
     velocity_slice = cp.asnumpy(velocity[:, :, :, n // 2])
     magnetic_slice = cp.asnumpy(magnetic_field[:, :, :, n // 2])
 
     figure, axes = plt.subplots(2, 3, figsize=(14, 8))
     for component in range(3):
-        image = axes[0, component].imshow(velocity_slice[component].T, origin="lower", cmap="viridis")
+        image = axes[0, component].imshow(
+            velocity_slice[component].T, origin="lower", cmap="viridis"
+        )
         axes[0, component].set_title(f"u{component + 1} slice")
         figure.colorbar(image, ax=axes[0, component])
-        image = axes[1, component].imshow(magnetic_slice[component].T, origin="lower", cmap="plasma")
+        image = axes[1, component].imshow(
+            magnetic_slice[component].T, origin="lower", cmap="plasma"
+        )
         axes[1, component].set_title(f"B{component + 1} slice")
         figure.colorbar(image, ax=axes[1, component])
     figure.tight_layout()

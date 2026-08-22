@@ -1,3 +1,4 @@
+"""JAX-based 3D Taylor-Green vortex spectral solver."""
 import os
 import time
 
@@ -16,14 +17,14 @@ jax.config.update("jax_enable_x64", True)
 def reynolds_to_viscosity(reynolds, velocity_amplitude=1.0, domain_length=2.0 * jnp.pi):
     """
     Convert Reynolds number to kinematic viscosity.
-    
+
     Re = (u_amp * L) / nu  =>  nu = (u_amp * L) / Re
-    
+
     Args:
         reynolds: Reynolds number
         velocity_amplitude: Characteristic velocity (default: 1.0)
         domain_length: Domain size (default: 2π)
-    
+
     Returns:
         Kinematic viscosity nu
     """
@@ -35,12 +36,12 @@ def reynolds_to_viscosity(reynolds, velocity_amplitude=1.0, domain_length=2.0 * 
 def viscosity_to_reynolds(nu, velocity_amplitude=1.0, domain_length=2.0 * jnp.pi):
     """
     Convert kinematic viscosity to Reynolds number.
-    
+
     Args:
         nu: Kinematic viscosity
         velocity_amplitude: Characteristic velocity (default: 1.0)
         domain_length: Domain size (default: 2π)
-    
+
     Returns:
         Reynolds number
     """
@@ -52,12 +53,14 @@ def viscosity_to_reynolds(nu, velocity_amplitude=1.0, domain_length=2.0 * jnp.pi
 
 
 def make_wavenumbers(N, L):
+    """Generate wavenumber arrays for spectral computation."""
     k = 2.0 * jnp.pi * jnp.fft.fftfreq(N, d=L / N)
     kx, ky, kz = jnp.meshgrid(k, k, k, indexing="ij")
     return kx, ky, kz
 
 
 def make_dealias_mask(N, L):
+    """Create dealiasing mask using 2/3 rule."""
     cutoff = (N // 3) * (2.0 * jnp.pi / L)
     k = 2.0 * jnp.pi * jnp.fft.fftfreq(N, d=L / N)
     mask_1d = jnp.abs(k) <= cutoff
@@ -65,6 +68,7 @@ def make_dealias_mask(N, L):
 
 
 def initial_taylor_green(N, L=2.0 * jnp.pi, amp=1.0):
+    """Initialize velocity field with Taylor-Green vortex."""
     x = jnp.linspace(0.0, L, N, endpoint=False)
     X, Y, Z = jnp.meshgrid(x, x, x, indexing="ij")
 
@@ -76,6 +80,7 @@ def initial_taylor_green(N, L=2.0 * jnp.pi, amp=1.0):
 
 
 def spectral_gradient(field_hat, kx, ky, kz):
+    """Compute gradient in spectral space and return in physical space."""
     dfdx = jnp.fft.ifftn(1j * kx * field_hat, axes=(-3, -2, -1)).real
     dfdy = jnp.fft.ifftn(1j * ky * field_hat, axes=(-3, -2, -1)).real
     dfdz = jnp.fft.ifftn(1j * kz * field_hat, axes=(-3, -2, -1)).real
@@ -83,6 +88,7 @@ def spectral_gradient(field_hat, kx, ky, kz):
 
 
 def spectral_divergence(u, kx, ky, kz):
+    """Compute velocity divergence using spectral derivatives."""
     u_hat = jnp.fft.fftn(u, axes=(-3, -2, -1))
     divergence_hat = 1j * (
         kx * u_hat[0] + ky * u_hat[1] + kz * u_hat[2]
@@ -91,6 +97,7 @@ def spectral_divergence(u, kx, ky, kz):
 
 
 def vorticity(u, kx, ky, kz):
+    """Compute vorticity from velocity field."""
     u_hat = jnp.fft.fftn(u, axes=(-3, -2, -1))
     du_dx, du_dy, du_dz = spectral_gradient(u_hat[0], kx, ky, kz)
     dv_dx, dv_dy, dv_dz = spectral_gradient(u_hat[1], kx, ky, kz)
@@ -103,11 +110,13 @@ def vorticity(u, kx, ky, kz):
 
 
 def enstrophy(u, kx, ky, kz):
+    """Compute enstrophy (kinetic energy of vorticity)."""
     omega = vorticity(u, kx, ky, kz)
     return 0.5 * jnp.mean(jnp.sum(omega * omega, axis=0))
 
 
 def viscous_dissipation(u, nu, kx, ky, kz):
+    """Compute viscous dissipation rate."""
     u_hat = jnp.fft.fftn(u, axes=(-3, -2, -1))
     gradients_squared = jnp.sum(
         jnp.abs(1j * kx * u_hat) ** 2
@@ -120,6 +129,7 @@ def viscous_dissipation(u, nu, kx, ky, kz):
 
 
 def validate_timestep(dt, nu, kx, ky, kz, cfl=0.5, max_velocity=1.0):
+    """Validate timestep satisfies CFL and diffusive stability conditions."""
     if dt <= 0.0:
         raise ValueError("dt must be positive")
     if nu < 0.0:
@@ -146,6 +156,7 @@ def validate_timestep(dt, nu, kx, ky, kz, cfl=0.5, max_velocity=1.0):
 
 
 def spectral_rhs(u, nu, kx, ky, kz, dealias_mask):
+    """Compute right-hand side of spectral Navier-Stokes."""
     u_hat = jnp.fft.fftn(u, axes=(-3, -2, -1))
     u_hat = u_hat * dealias_mask
     k2 = kx * kx + ky * ky + kz * kz
@@ -176,6 +187,7 @@ def spectral_rhs(u, nu, kx, ky, kz, dealias_mask):
 
 @jax.jit
 def advance_one_step(u, dt, nu, kx, ky, kz, dealias_mask):
+    """Advance solution one timestep using RK4 integration."""
     # RK4 (4th-order Runge-Kutta) keeps each nonlinear evaluation projected and dealiased.
     rhs_1 = spectral_rhs(u, nu, kx, ky, kz, dealias_mask)
     rhs_2 = spectral_rhs(u + 0.5 * dt * rhs_1, nu, kx, ky, kz, dealias_mask)
@@ -185,6 +197,7 @@ def advance_one_step(u, dt, nu, kx, ky, kz, dealias_mask):
 
 
 def kinetic_energy(u):
+    """Compute kinetic energy density."""
     return 0.5 * jnp.mean(u[0] ** 2 + u[1] ** 2 + u[2] ** 2)
 
 
@@ -200,7 +213,7 @@ def run_simulation(
 ):
     """
     Run 3D decaying Taylor-Green vortex simulation.
-    
+
     Args:
         N: Grid resolution (default: 16)
         dt: Timestep (default: 0.005)
@@ -210,22 +223,24 @@ def run_simulation(
         save_every_time: Save diagnostics every this much physical time (default: 0.05)
         cfl: CFL number for timestep validation (default: 0.5)
         return_diagnostics: If True, return detailed diagnostics dict (default: False)
-    
+
     Returns:
         (u, energies) if return_diagnostics=False
         (u, energies, diagnostics) if return_diagnostics=True
     """
     if N < 4 or total_time <= 0.0 or save_every_time <= 0.0:
-        raise ValueError("N must be at least 4, total_time and save_every_time must be positive")
+        raise ValueError(
+            "N must be at least 4, total_time and save_every_time must be positive"
+        )
     if dt <= 0.0:
         raise ValueError("dt must be positive")
-    
+
     n_steps = int(total_time / dt)
     save_every = max(1, int(save_every_time / dt))
-    
+
     L = 2.0 * jnp.pi
     velocity_amplitude = 1.0
-    
+
     # Determine viscosity from either reynolds or nu
     if reynolds is not None:
         nu = reynolds_to_viscosity(reynolds, velocity_amplitude, L)
@@ -233,7 +248,7 @@ def run_simulation(
         # Default to Re=100
         reynolds = 100
         nu = reynolds_to_viscosity(reynolds, velocity_amplitude, L)
-    
+
     # Compute actual Reynolds number for reporting
     actual_reynolds = viscosity_to_reynolds(nu, velocity_amplitude, L)
     kx, ky, kz = make_wavenumbers(N, L)
@@ -253,7 +268,8 @@ def run_simulation(
         if (step + 1) % save_every == 0 or step == n_steps - 1:
             times.append((step + 1) * dt)
             energies.append(float(kinetic_energy(u)))
-            divergence_max.append(float(jnp.max(jnp.abs(spectral_divergence(u, kx, ky, kz)))))
+            div_max = float(jnp.max(jnp.abs(spectral_divergence(u, kx, ky, kz))))
+            divergence_max.append(div_max)
             enstrophies.append(float(enstrophy(u, kx, ky, kz)))
             dissipations.append(float(viscous_dissipation(u, nu, kx, ky, kz)))
             print(f"Save time step: {step + 1}, Enstrophy: {enstrophies[-1]:.6e}")
@@ -304,5 +320,14 @@ def run_simulation(
 if __name__ == "__main__":
     print("JAX devices:", jax.devices())
     if not jax.devices("gpu"):
-        print("WARNING: No GPU detected by JAX. Check CUDA + driver setup before scaling up.")
-    run_simulation(N=256, dt=0.005, reynolds=1000, total_time=10*2*jnp.pi*1000, save_every_time=0.05)
+        print(
+            "WARNING: No GPU detected by JAX. Check CUDA + driver setup before "
+            "scaling up."
+        )
+    run_simulation(
+        N=256,
+        dt=0.005,
+        reynolds=1000,
+        total_time=10 * 2 * jnp.pi * 1000,
+        save_every_time=0.05
+    )
