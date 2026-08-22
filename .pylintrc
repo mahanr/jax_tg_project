@@ -1,5 +1,6 @@
 [MASTER]
 max-line-length=120
+extension-pkg-allow-list=cupy
 
 [MESSAGES CONTROL]
 disable=
@@ -9,11 +10,17 @@ disable=
     missing-function-docstring,
     no-name-in-module,
     too-many-instance-attributes,
-    too-many-local-variables,
-    too-few-public-methods,
+    too-many-locals,
+    too-many-arguments,
     too-many-positional-arguments,
+    too-few-public-methods,
     invalid-name,
     wrong-import-order,
     wrong-import-position,
     line-too-long,
-    trailing-whitespace
+    trailing-whitespace,
+    import-outside-toplevel,
+    duplicate-code,
+    unused-variable,
+    c-extension-no-member,
+    too-many-statements
