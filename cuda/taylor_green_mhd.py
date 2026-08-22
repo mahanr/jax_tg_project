@@ -2,7 +2,7 @@
 
 import cupy as cp
 
-from taylor_green_cuda.grid import SpectralGrid, SpectralGridView
+from taylor_green_cuda.grid import SpectralGrid
 from taylor_green_mhd.config import TaylorGreenMhdConfig
 from taylor_green_mhd.initial_conditions import TaylorGreenMhdInitialCondition
 from taylor_green_mhd.operators import MhdSpectralOperator
@@ -34,7 +34,7 @@ def initial_taylor_green_mhd_spectral(n, length=2.0 * cp.pi, magnetic_amplitude=
 
 
 def _grid_from_arrays(kx, ky, kz, dealias_mask):
-    return SpectralGridView(kx, ky, kz, dealias_mask)
+    return SpectralGrid.from_arrays(kx, ky, kz, dealias_mask)
 
 
 def spectral_rhs_mhd(

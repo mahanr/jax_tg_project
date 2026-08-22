@@ -5,29 +5,23 @@ class SpectralGrid:
     def __init__(self, n, domain_length):
         self.n = n
         self.domain_length = domain_length
-        self.k = 2.0 * cp.pi * cp.fft.fftfreq(n, d=domain_length / n)
-        self.kx, self.ky, self.kz = cp.meshgrid(self.k, self.k, self.k, indexing="ij")
-        self.k_squared = self.kx * self.kx + self.ky * self.ky + self.kz * self.kz
+        k = 2.0 * cp.pi * cp.fft.fftfreq(n, d=domain_length / n)
+        kx, ky, kz = cp.meshgrid(k, k, k, indexing="ij")
         cutoff = (n // 3) * (2.0 * cp.pi / domain_length)
-        keep = cp.abs(self.k) <= cutoff
-        self.dealias_mask = keep[:, None, None] & keep[None, :, None] & keep[None, None, :]
+        keep = cp.abs(k) <= cutoff
+        dealias_mask = keep[:, None, None] & keep[None, :, None] & keep[None, None, :]
+        self._set_wavenumbers(kx, ky, kz, dealias_mask)
 
-    def to_spectral(self, field):
-        field_hat = cp.fft.fftn(field, axes=(-3, -2, -1))
-        field_hat *= self.dealias_mask
-        return field_hat
+    @classmethod
+    def from_arrays(cls, kx, ky, kz, dealias_mask):
+        """Build a grid from precomputed wavenumber arrays (for shim APIs)."""
+        grid = cls.__new__(cls)
+        grid.n = int(kx.shape[0])
+        grid.domain_length = None
+        grid._set_wavenumbers(kx, ky, kz, dealias_mask)
+        return grid
 
-    def to_real(self, field_hat):
-        return cp.fft.ifftn(field_hat, axes=(-3, -2, -1)).real
-
-    def dealias(self, field_hat):
-        return field_hat * self.dealias_mask
-
-
-class SpectralGridView:
-    """Grid view built from precomputed wavenumber arrays (for shim APIs)."""
-
-    def __init__(self, kx, ky, kz, dealias_mask):
+    def _set_wavenumbers(self, kx, ky, kz, dealias_mask):
         self.kx = kx
         self.ky = ky
         self.kz = kz
