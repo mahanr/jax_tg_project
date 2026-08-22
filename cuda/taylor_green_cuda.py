@@ -3,7 +3,7 @@
 import cupy as cp
 
 from taylor_green_cuda.config import TaylorGreenConfig
-from taylor_green_cuda.grid import SpectralGrid
+from taylor_green_cuda.grid import SpectralGrid, SpectralGridView
 from taylor_green_cuda.initial_conditions import TaylorGreenInitialCondition
 from taylor_green_cuda.operators import CupySpectralOperator
 from taylor_green_cuda.simulation import TaylorGreenSimulation
@@ -28,14 +28,7 @@ def initial_taylor_green_spectral(n, length=2.0 * cp.pi):
 
 
 def _grid_from_arrays(kx, ky, kz, dealias_mask):
-    grid = type("GridView", (), {})()
-    grid.kx, grid.ky, grid.kz = kx, ky, kz
-    grid.k_squared = kx * kx + ky * ky + kz * kz
-    grid.dealias_mask = dealias_mask
-    grid.to_spectral = lambda field: cp.fft.fftn(field, axes=(-3, -2, -1)) * dealias_mask
-    grid.to_real = lambda field_hat: cp.fft.ifftn(field_hat, axes=(-3, -2, -1)).real
-    grid.dealias = lambda field_hat: field_hat * dealias_mask
-    return grid
+    return SpectralGridView(kx, ky, kz, dealias_mask)
 
 
 def spectral_rhs(velocity_hat, nu, kx, ky, kz, dealias_mask):

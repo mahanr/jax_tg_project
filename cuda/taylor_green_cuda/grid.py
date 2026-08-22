@@ -22,3 +22,25 @@ class SpectralGrid:
 
     def dealias(self, field_hat):
         return field_hat * self.dealias_mask
+
+
+class SpectralGridView:
+    """Grid view built from precomputed wavenumber arrays (for shim APIs)."""
+
+    def __init__(self, kx, ky, kz, dealias_mask):
+        self.kx = kx
+        self.ky = ky
+        self.kz = kz
+        self.k_squared = kx * kx + ky * ky + kz * kz
+        self.dealias_mask = dealias_mask
+
+    def to_spectral(self, field):
+        field_hat = cp.fft.fftn(field, axes=(-3, -2, -1))
+        field_hat *= self.dealias_mask
+        return field_hat
+
+    def to_real(self, field_hat):
+        return cp.fft.ifftn(field_hat, axes=(-3, -2, -1)).real
+
+    def dealias(self, field_hat):
+        return field_hat * self.dealias_mask
