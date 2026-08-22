@@ -22,23 +22,35 @@ def initial_taylor_green(n, length=2.0 * cp.pi):
     return TaylorGreenInitialCondition(length).create(n)
 
 
-def _operator_from_arrays(kx, ky, kz, dealias_mask):
+def initial_taylor_green_spectral(n, length=2.0 * cp.pi):
+    grid = SpectralGrid(n, length)
+    return grid.to_spectral(TaylorGreenInitialCondition(length).create(n))
+
+
+def _grid_from_arrays(kx, ky, kz, dealias_mask):
     grid = type("GridView", (), {})()
     grid.kx, grid.ky, grid.kz = kx, ky, kz
     grid.k_squared = kx * kx + ky * ky + kz * kz
     grid.dealias_mask = dealias_mask
-    return CupySpectralOperator(grid)
+    grid.to_spectral = lambda field: cp.fft.fftn(field, axes=(-3, -2, -1)) * dealias_mask
+    grid.to_real = lambda field_hat: cp.fft.ifftn(field_hat, axes=(-3, -2, -1)).real
+    grid.dealias = lambda field_hat: field_hat * dealias_mask
+    return grid
 
 
-def spectral_rhs(velocity, nu, kx, ky, kz, dealias_mask):
-    return _operator_from_arrays(kx, ky, kz, dealias_mask).rhs(velocity, nu)
+def spectral_rhs(velocity_hat, nu, kx, ky, kz, dealias_mask):
+    return CupySpectralOperator(_grid_from_arrays(kx, ky, kz, dealias_mask)).rhs(
+        velocity_hat, nu
+    )
 
 
-def advance_one_step(velocity, dt, nu, kx, ky, kz, dealias_mask):
+def advance_one_step(velocity_hat, dt, nu, kx, ky, kz, dealias_mask):
     from taylor_green_cuda.integrator import RK4Integrator
 
-    operator = _operator_from_arrays(kx, ky, kz, dealias_mask)
-    return RK4Integrator(operator, dt, nu).step(velocity)
+    grid = _grid_from_arrays(kx, ky, kz, dealias_mask)
+    operator = CupySpectralOperator(grid)
+    integrator = RK4Integrator(operator, dt, nu)
+    return grid.dealias(integrator.step(velocity_hat))
 
 
 def kinetic_energy(velocity):
@@ -48,16 +60,20 @@ def kinetic_energy(velocity):
 def enstrophy(velocity, kx, ky, kz):
     from taylor_green_cuda.diagnostics import Diagnostics
 
-    operator = _operator_from_arrays(kx, ky, kz, cp.ones_like(kx, dtype=bool))
+    operator = CupySpectralOperator(_grid_from_arrays(kx, ky, kz, cp.ones_like(kx, dtype=bool)))
+    grid = SpectralGrid(int(kx.shape[0]), 2.0 * cp.pi)
+    state_hat = grid.to_spectral(velocity)
     diagnostics = Diagnostics(operator)
-    return cp.asarray(diagnostics.record(0.0, velocity)[1])
+    return cp.asarray(diagnostics.record(0.0, state_hat)[1])
 
 
 def run_simulation(n=128, dt=0.005, reynolds=1000.0, total_time=1.0,
                    save_every_time=0.05):
     config = TaylorGreenConfig(n, dt, reynolds, total_time, save_every_time)
-    state, diagnostics = TaylorGreenSimulation(config).run()
-    return state, diagnostics.times, diagnostics.energies, diagnostics.enstrophies
+    simulation = TaylorGreenSimulation(config)
+    state_hat, diagnostics = simulation.run()
+    grid = simulation.grid
+    return grid.to_real(state_hat), diagnostics.times, diagnostics.energies, diagnostics.enstrophies
 
 
 def main():

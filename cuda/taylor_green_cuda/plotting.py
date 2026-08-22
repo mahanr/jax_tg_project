@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 import cupy as cp
 
 
-def save_plots(state, diagnostics, n):
-    slice_data = cp.asnumpy(state[:, :, :, n // 2])
+def save_plots(state_hat, diagnostics, n, grid):
+    slice_data = cp.asnumpy(grid.to_real(state_hat)[:, :, :, n // 2])
     figure, axes = plt.subplots(1, 3, figsize=(12, 4))
     for component, axis in enumerate(axes):
         image = axis.imshow(slice_data[component].T, origin="lower", cmap="viridis")

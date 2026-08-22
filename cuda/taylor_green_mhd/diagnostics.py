@@ -17,7 +17,9 @@ class MhdDiagnostics:
     def _host(value):
         return float(value.get())
 
-    def record(self, time, velocity, magnetic_field):
+    def record(self, time, velocity_hat, magnetic_field_hat):
+        velocity = self.operator.grid.to_real(velocity_hat)
+        magnetic_field = self.operator.grid.to_real(magnetic_field_hat)
         kinetic = 0.5 * cp.mean(cp.sum(velocity * velocity, axis=0))
         magnetic = 0.5 * cp.mean(cp.sum(magnetic_field * magnetic_field, axis=0))
         cross = cp.mean(
@@ -25,23 +27,15 @@ class MhdDiagnostics:
             + velocity[1] * magnetic_field[1]
             + velocity[2] * magnetic_field[2]
         )
-        velocity_hat = cp.fft.fftn(velocity, axes=(-3, -2, -1))
-        gradients = self.operator.gradients(velocity_hat)
-        omega = cp.stack((
-            gradients[2][1] - gradients[1][2],
-            gradients[0][2] - gradients[2][0],
-            gradients[1][0] - gradients[0][1],
-        ))
+        omega = self.operator.grid.to_real(self.operator.spectral_curl_hat(velocity_hat))
         enstrophy = 0.5 * cp.mean(cp.sum(omega * omega, axis=0))
-        div_u = self.operator.spectral_divergence(velocity)
-        div_b = self.operator.spectral_divergence(magnetic_field)
+        div_u_max = self._host(cp.max(cp.abs(self.operator.divergence_from_hat(velocity_hat))))
+        div_b_max = self._host(cp.max(cp.abs(self.operator.divergence_from_hat(magnetic_field_hat))))
 
         kinetic = self._host(kinetic)
         magnetic = self._host(magnetic)
         cross = self._host(cross)
         enstrophy = self._host(enstrophy)
-        div_u_max = self._host(cp.max(cp.abs(div_u)))
-        div_b_max = self._host(cp.max(cp.abs(div_b)))
 
         self.times.append(time)
         self.kinetic_energies.append(kinetic)

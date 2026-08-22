@@ -27,15 +27,17 @@ class TaylorGreenMhdSimulation:
             self.config.viscosity,
             self.config.resistivity,
         )
-        self.velocity, self.magnetic_field = self.initial_condition.create(self.config.n)
+        velocity, magnetic_field = self.initial_condition.create(self.config.n)
+        self.velocity_hat = self.grid.to_spectral(velocity)
+        self.magnetic_field_hat = self.grid.to_spectral(magnetic_field)
         self.diagnostics = MhdDiagnostics(self.operator)
         self.make_plots = make_plots
 
     def record(self, step):
         kinetic, magnetic, cross, enstrophy = self.diagnostics.record(
             step * self.config.dt,
-            self.velocity,
-            self.magnetic_field,
+            self.velocity_hat,
+            self.magnetic_field_hat,
         )
         print(
             f"Save time step: {step}, time: {step * self.config.dt:.6f}, "
@@ -54,12 +56,14 @@ class TaylorGreenMhdSimulation:
             max_velocity=1.0,
             max_field=config.magnetic_amplitude,
         )
-        self.diagnostics.record(0.0, self.velocity, self.magnetic_field)
+        self.diagnostics.record(0.0, self.velocity_hat, self.magnetic_field_hat)
         start = time.perf_counter()
-        state = (self.velocity, self.magnetic_field)
+        state = (self.velocity_hat, self.magnetic_field_hat)
         for step in range(1, config.steps + 1):
             state = self.integrator.step(state)
-            self.velocity, self.magnetic_field = state
+            self.velocity_hat, self.magnetic_field_hat = state
+            self.velocity_hat = self.grid.dealias(self.velocity_hat)
+            self.magnetic_field_hat = self.grid.dealias(self.magnetic_field_hat)
             if step % config.save_every == 0 or step == config.steps:
                 self.record(step)
         cp.cuda.Stream.null.synchronize()
@@ -84,7 +88,13 @@ class TaylorGreenMhdSimulation:
             f"B: {max(self.diagnostics.divergence_b_max):.3e}"
         )
         if self.make_plots:
-            save_plots(self.velocity, self.magnetic_field, self.diagnostics, config.n)
+            save_plots(
+                self.velocity_hat,
+                self.magnetic_field_hat,
+                self.diagnostics,
+                config.n,
+                self.grid,
+            )
             print("Saved: taylor_green_mhd_slice.png")
             print("Saved: taylor_green_mhd_diagnostics.png")
-        return self.velocity, self.magnetic_field, self.diagnostics
+        return self.velocity_hat, self.magnetic_field_hat, self.diagnostics

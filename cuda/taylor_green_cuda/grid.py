@@ -11,3 +11,14 @@ class SpectralGrid:
         cutoff = (n // 3) * (2.0 * cp.pi / domain_length)
         keep = cp.abs(self.k) <= cutoff
         self.dealias_mask = keep[:, None, None] & keep[None, :, None] & keep[None, None, :]
+
+    def to_spectral(self, field):
+        field_hat = cp.fft.fftn(field, axes=(-3, -2, -1))
+        field_hat *= self.dealias_mask
+        return field_hat
+
+    def to_real(self, field_hat):
+        return cp.fft.ifftn(field_hat, axes=(-3, -2, -1)).real
+
+    def dealias(self, field_hat):
+        return field_hat * self.dealias_mask

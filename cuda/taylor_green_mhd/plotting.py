@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 import cupy as cp
 
 
-def save_plots(velocity, magnetic_field, diagnostics, n):
+def save_plots(velocity_hat, magnetic_field_hat, diagnostics, n, grid):
     """Save velocity and magnetic field slices and diagnostics plots."""
-    velocity_slice = cp.asnumpy(velocity[:, :, :, n // 2])
-    magnetic_slice = cp.asnumpy(magnetic_field[:, :, :, n // 2])
+    velocity_slice = cp.asnumpy(grid.to_real(velocity_hat)[:, :, :, n // 2])
+    magnetic_slice = cp.asnumpy(grid.to_real(magnetic_field_hat)[:, :, :, n // 2])
 
     figure, axes = plt.subplots(2, 3, figsize=(14, 8))
     for component in range(3):

@@ -18,7 +18,7 @@ class TaylorGreenSimulation:
         self.initial_condition = TaylorGreenInitialCondition(self.config.domain_length)
         self.operator = CupySpectralOperator(self.grid)
         self.integrator = RK4Integrator(self.operator, self.config.dt, self.config.viscosity)
-        self.state = self.initial_condition.create(self.config.n)
+        self.state = self.grid.to_spectral(self.initial_condition.create(self.config.n))
         self.diagnostics = Diagnostics(self.operator)
         self.make_plots = make_plots
 
@@ -34,6 +34,7 @@ class TaylorGreenSimulation:
         start = time.perf_counter()
         for step in range(1, config.steps + 1):
             self.state = self.integrator.step(self.state)
+            self.state = self.grid.dealias(self.state)
             if step % config.save_every == 0 or step == config.steps:
                 self.record(step)
         cp.cuda.Stream.null.synchronize()
@@ -47,5 +48,5 @@ class TaylorGreenSimulation:
         print(f"Energy trace: {self.diagnostics.energies[0]:.6f} -> "
               f"{self.diagnostics.energies[-1]:.6f}")
         if self.make_plots:
-            save_plots(self.state, self.diagnostics, config.n)
+            save_plots(self.state, self.diagnostics, config.n, self.grid)
         return self.state, self.diagnostics

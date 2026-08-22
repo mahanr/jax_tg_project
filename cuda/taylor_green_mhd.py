@@ -21,39 +21,49 @@ def make_dealias_mask(n, length):
 
 
 def initial_taylor_green_mhd(n, length=2.0 * cp.pi, magnetic_amplitude=0.5):
-    """Initialize Taylor-Green MHD velocity and magnetic fields."""
+    """Initialize Taylor-Green MHD velocity and magnetic fields in real space."""
     return TaylorGreenMhdInitialCondition(length, magnetic_amplitude).create(n)
 
 
-def _operator_from_grid(grid):
-    """Create MHD spectral operator from grid."""
-    return MhdSpectralOperator(grid)
+def initial_taylor_green_mhd_spectral(n, length=2.0 * cp.pi, magnetic_amplitude=0.5):
+    """Initialize Taylor-Green MHD fields in spectral space."""
+    grid = SpectralGrid(n, length)
+    ic = TaylorGreenMhdInitialCondition(length, magnetic_amplitude)
+    velocity, magnetic_field = ic.create(n)
+    return grid.to_spectral(velocity), grid.to_spectral(magnetic_field)
+
+
+def _grid_from_arrays(kx, ky, kz, dealias_mask):
+    grid = type("GridView", (), {})()
+    grid.kx, grid.ky, grid.kz = kx, ky, kz
+    grid.k_squared = kx * kx + ky * ky + kz * kz
+    grid.dealias_mask = dealias_mask
+    grid.to_spectral = lambda field: cp.fft.fftn(field, axes=(-3, -2, -1)) * dealias_mask
+    grid.to_real = lambda field_hat: cp.fft.ifftn(field_hat, axes=(-3, -2, -1)).real
+    grid.dealias = lambda field_hat: field_hat * dealias_mask
+    return grid
 
 
 def spectral_rhs_mhd(
-    velocity, magnetic_field, viscosity, resistivity, kx, ky, kz, dealias_mask
+    velocity_hat, magnetic_field_hat, viscosity, resistivity, kx, ky, kz, dealias_mask
 ):
-    """Compute RHS of spectral MHD equations."""
-    grid = type("GridView", (), {})()
-    grid.kx, grid.ky, grid.kz = kx, ky, kz
-    grid.k_squared = kx * kx + ky * ky + kz * kz
-    grid.dealias_mask = dealias_mask
-    return MhdSpectralOperator(grid).rhs(velocity, magnetic_field, viscosity, resistivity)
+    """Compute RHS of spectral MHD equations in Fourier space."""
+    return MhdSpectralOperator(_grid_from_arrays(kx, ky, kz, dealias_mask)).rhs(
+        velocity_hat, magnetic_field_hat, viscosity, resistivity
+    )
 
 
 def advance_one_step(
-    velocity, magnetic_field, dt, viscosity, resistivity, kx, ky, kz, dealias_mask
+    velocity_hat, magnetic_field_hat, dt, viscosity, resistivity, kx, ky, kz, dealias_mask
 ):
-    """Advance MHD solution one timestep."""
+    """Advance MHD solution one timestep in spectral space."""
     from taylor_green_mhd.integrator import MhdRK4Integrator
 
-    grid = type("GridView", (), {})()
-    grid.kx, grid.ky, grid.kz = kx, ky, kz
-    grid.k_squared = kx * kx + ky * ky + kz * kz
-    grid.dealias_mask = dealias_mask
+    grid = _grid_from_arrays(kx, ky, kz, dealias_mask)
     operator = MhdSpectralOperator(grid)
     integrator = MhdRK4Integrator(operator, dt, viscosity, resistivity)
-    return integrator.step((velocity, magnetic_field))
+    velocity_hat, magnetic_field_hat = integrator.step((velocity_hat, magnetic_field_hat))
+    return grid.dealias(velocity_hat), grid.dealias(magnetic_field_hat)
 
 
 def kinetic_energy(velocity):
@@ -86,11 +96,14 @@ def run_simulation(
         total_time=total_time,
         save_every_time=save_every_time,
     )
-    velocity, magnetic_field, diagnostics = TaylorGreenMhdSimulation(
-        config,
-        make_plots=make_plots,
-    ).run()
-    return velocity, magnetic_field, diagnostics
+    simulation = TaylorGreenMhdSimulation(config, make_plots=make_plots)
+    velocity_hat, magnetic_field_hat, diagnostics = simulation.run()
+    grid = simulation.grid
+    return (
+        grid.to_real(velocity_hat),
+        grid.to_real(magnetic_field_hat),
+        diagnostics,
+    )
 
 
 def main():

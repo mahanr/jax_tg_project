@@ -24,8 +24,10 @@ class TaylorGreenMhdTests(unittest.TestCase):
         grid = SpectralGrid(16, LENGTH)
         operator = MhdSpectralOperator(grid)
         velocity, magnetic_field = TaylorGreenMhdInitialCondition(LENGTH, 0.5).create(16)
-        div_u = operator.spectral_divergence(velocity)
-        div_b = operator.spectral_divergence(magnetic_field)
+        velocity_hat = grid.to_spectral(velocity)
+        magnetic_field_hat = grid.to_spectral(magnetic_field)
+        div_u = operator.divergence_from_hat(velocity_hat)
+        div_b = operator.divergence_from_hat(magnetic_field_hat)
         self.assertLess(float(cp.max(cp.abs(div_u)).get()), 1e-5)
         self.assertLess(float(cp.max(cp.abs(div_b)).get()), 1e-5)
 
@@ -56,12 +58,10 @@ class TaylorGreenMhdTests(unittest.TestCase):
             total_time=0.02,
             save_every_time=0.01,
         )
-        velocity, magnetic_field, diagnostics = TaylorGreenMhdSimulation(
-            config,
-            make_plots=False,
-        ).run()
-        self.assertTrue(bool(cp.all(cp.isfinite(velocity))))
-        self.assertTrue(bool(cp.all(cp.isfinite(magnetic_field))))
+        simulation = TaylorGreenMhdSimulation(config, make_plots=False)
+        velocity_hat, magnetic_field_hat, diagnostics = simulation.run()
+        self.assertTrue(bool(cp.all(cp.isfinite(velocity_hat))))
+        self.assertTrue(bool(cp.all(cp.isfinite(magnetic_field_hat))))
         self.assertEqual(len(diagnostics.times), 3)
         self.assertLess(max(diagnostics.divergence_u_max), 1e-4)
         self.assertLess(max(diagnostics.divergence_b_max), 1e-4)
@@ -71,9 +71,11 @@ class TaylorGreenMhdTests(unittest.TestCase):
         operator = MhdSpectralOperator(grid)
         integrator = MhdRK4Integrator(operator, 0.005, LENGTH / 100.0, LENGTH / 100.0)
         velocity, magnetic_field = TaylorGreenMhdInitialCondition(LENGTH, 0.5).create(8)
-        velocity, magnetic_field = integrator.step((velocity, magnetic_field))
-        self.assertTrue(bool(cp.all(cp.isfinite(velocity))))
-        self.assertTrue(bool(cp.all(cp.isfinite(magnetic_field))))
+        velocity_hat = grid.to_spectral(velocity)
+        magnetic_field_hat = grid.to_spectral(magnetic_field)
+        velocity_hat, magnetic_field_hat = integrator.step((velocity_hat, magnetic_field_hat))
+        self.assertTrue(bool(cp.all(cp.isfinite(velocity_hat))))
+        self.assertTrue(bool(cp.all(cp.isfinite(magnetic_field_hat))))
 
     def test_magnetic_reynolds_conversion(self):
         rm = 100.0
