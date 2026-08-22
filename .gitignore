@@ -5,3 +5,9 @@ taylor_green_slice.png
 taylor_green_cuda_slice.png
 taylor_green_diagnostics.png
 taylor_green_cuda_diagnostics.png
+jax/taylor_green_slice.png
+jax/taylor_green_diagnostics.png
+cuda/taylor_green_cuda_slice.png
+cuda/taylor_green_cuda_diagnostics.png
+cuda/taylor_green_mhd_slice.png
+cuda/taylor_green_mhd_diagnostics.pngcuda/sim_output.log

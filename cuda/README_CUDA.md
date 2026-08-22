@@ -11,9 +11,10 @@ python -m pip install cupy-cuda12x matplotlib
 ```
 
 For CUDA 11, use `cupy-cuda11x` instead. Verify the GPU and run a T4-friendly
-case with:
+case from the `cuda` directory:
 
 ```powershell
+cd cuda
 python taylor_green_cuda.py --n 128 --dt 0.005 --reynolds 1000 --total-time 1.0 --save-every-time 0.05
 ```
 
@@ -32,9 +33,10 @@ python -m taylor_green_cuda --n 128 --dt 0.005 --reynolds 1000 --total-time 1.0 
 
 1. Install the NVIDIA CUDA Toolkit, a supported Visual Studio version, and a CUDA-capable driver.
 2. Open **x64 Native Tools Command Prompt for VS** or **Developer PowerShell for VS**.
-3. Change to this repository directory and compile:
+3. Change to the `cuda` directory and compile:
 
 ```powershell
+cd cuda
 nvcc -O3 -arch=sm_75 -o taylor_green_cuda.exe taylor_green_cuda.cu -lcufft
 ```
 
