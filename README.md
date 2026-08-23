@@ -18,3 +18,5 @@ python -m unittest test_taylor_green_jax.py
 **CUDA HD** — see [cuda/README_CUDA.md](cuda/README_CUDA.md) for CuPy and native `nvcc` builds.
 
 **CUDA MHD** — see [cuda/README_MHD.md](cuda/README_MHD.md) for the Taylor-Green MHD CuPy solver.
+
+**Rotating shell convection** — see [cuda/README_SHELL.md](cuda/README_SHELL.md) for Boussinesq convection in a spherical shell.
