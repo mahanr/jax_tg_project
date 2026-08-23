@@ -41,8 +41,8 @@ class TaylorGreenMhdTests(unittest.TestCase):
 
     def test_timestep_validation_rejects_unstable_values(self):
         grid = SpectralGrid(16, LENGTH)
-        nu = LENGTH / 100.0
-        eta = LENGTH / 100.0
+        nu = 1.0 / 100.0
+        eta = 1.0 / 100.0
         with self.assertRaisesRegex(ValueError, "stability limit"):
             validate_timestep(1.0, nu, eta, grid)
         with self.assertRaisesRegex(ValueError, "positive"):
@@ -69,13 +69,18 @@ class TaylorGreenMhdTests(unittest.TestCase):
     def test_step_preserves_finite_values(self):
         grid = SpectralGrid(8, LENGTH)
         operator = MhdSpectralOperator(grid)
-        integrator = MhdRK4Integrator(operator, 0.005, LENGTH / 100.0, LENGTH / 100.0)
+        integrator = MhdRK4Integrator(operator, 0.005, 1.0 / 100.0, 1.0 / 100.0)
         velocity, magnetic_field = TaylorGreenMhdInitialCondition(LENGTH, 0.5).create(8)
         velocity_hat = grid.to_spectral(velocity)
         magnetic_field_hat = grid.to_spectral(magnetic_field)
         velocity_hat, magnetic_field_hat = integrator.step((velocity_hat, magnetic_field_hat))
         self.assertTrue(bool(cp.all(cp.isfinite(velocity_hat))))
         self.assertTrue(bool(cp.all(cp.isfinite(magnetic_field_hat))))
+
+    def test_nondimensional_dissipation_coefficients(self):
+        config = TaylorGreenMhdConfig(reynolds=250.0, magnetic_reynolds=500.0)
+        self.assertAlmostEqual(config.viscosity, 1.0 / 250.0)
+        self.assertAlmostEqual(config.resistivity, 1.0 / 500.0)
 
     def test_magnetic_reynolds_conversion(self):
         rm = 100.0

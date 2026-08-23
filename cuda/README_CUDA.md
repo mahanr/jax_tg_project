@@ -1,5 +1,12 @@
 # CUDA Taylor-Green solvers
 
+## Equations
+
+Non-dimensional incompressible Navier-Stokes on `[0, 2π)³` with `U_ref = 1`:
+
+- `∂u/∂t + (u·∇)u = -∇p + (1/Re)∇²u`, `∇·u = 0`
+- `ν = 1/Re`
+
 ## Python/CuPy version
 
 The recommended Python implementation is `taylor_green_cuda.py`. It uses CuPy,

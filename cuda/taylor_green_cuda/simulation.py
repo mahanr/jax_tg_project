@@ -23,8 +23,11 @@ class TaylorGreenSimulation:
         self.make_plots = make_plots
 
     def record(self, step):
-        energy, value = self.diagnostics.record(step * self.config.dt, self.state)
-        print(f"Save time step: {step}, time: {step * self.config.dt:.6f}, "
+        time_value = step * self.config.dt
+        if step == self.config.steps:
+            time_value = self.config.total_time
+        energy, value = self.diagnostics.record(time_value, self.state)
+        print(f"Save time step: {step}, time: {time_value:.6f}, "
               f"enstrophy: {value:.8e}")
         return energy, value
 
@@ -48,5 +51,5 @@ class TaylorGreenSimulation:
         print(f"Energy trace: {self.diagnostics.energies[0]:.6f} -> "
               f"{self.diagnostics.energies[-1]:.6f}")
         if self.make_plots:
-            save_plots(self.state, self.diagnostics, config.n, self.grid)
+            save_plots(self.state, self.diagnostics, config.n, self.grid, config.total_time)
         return self.state, self.diagnostics

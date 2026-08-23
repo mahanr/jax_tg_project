@@ -1,3 +1,11 @@
+"""Non-dimensional incompressible Navier-Stokes configuration.
+
+Governing equation on [0, 2π)³ with U_ref = 1:
+
+    ∂u/∂t + (u·∇)u = -∇p + (1/Re)∇²u,  ∇·u = 0
+
+Reynolds number Re = 1/ν is the sole viscous parameter.
+"""
 from dataclasses import dataclass
 import math
 
@@ -27,11 +35,11 @@ class TaylorGreenConfig:
 
     @property
     def viscosity(self):
-        return self.domain_length / self.reynolds
+        return 1.0 / self.reynolds
 
     @property
     def steps(self):
-        return int(self.total_time / self.dt)
+        return max(1, round(self.total_time / self.dt))
 
     @property
     def save_every(self):

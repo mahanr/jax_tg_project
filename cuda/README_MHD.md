@@ -4,12 +4,11 @@ Resistive incompressible MHD Taylor-Green vortex solver using CuPy on NVIDIA GPU
 
 ## Equations
 
-Incompressible MHD with kinematic viscosity `ν` and magnetic resistivity `η`:
+Non-dimensional resistive incompressible MHD on `[0, 2π)³` with `U_ref = 1`:
 
-- Momentum: `∂u/∂t + (u·∇)u = -∇p + (∇×B)×B + ν∇²u`, `∇·u = 0`
-- Induction: `∂B/∂t = ∇×(u×B) + η∇²B`, `∇·B = 0`
-
-Parameters follow the HD convention: `ν = L/Re`, `η = L/Rm` with `L = 2π`.
+- Momentum: `∂u/∂t + (u·∇)u = -∇p + (∇×B)×B + (1/Re)∇²u`, `∇·u = 0`
+- Induction: `∂B/∂t = ∇×(u×B) + (1/Rm)∇²B`, `∇·B = 0`
+- `ν = 1/Re`, `η = 1/Rm`
 
 ## Install
 

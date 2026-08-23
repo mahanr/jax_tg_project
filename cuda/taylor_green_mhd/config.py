@@ -1,3 +1,12 @@
+"""Non-dimensional resistive incompressible MHD configuration.
+
+Governing equations on [0, 2π)³ with U_ref = 1:
+
+    ∂u/∂t + (u·∇)u = -∇p + (∇×B)×B + (1/Re)∇²u,  ∇·u = 0
+    ∂B/∂t = ∇×(u×B) + (1/Rm)∇²B,                  ∇·B = 0
+
+Re = 1/ν and Rm = 1/η are the sole dissipative parameters.
+"""
 from dataclasses import dataclass
 import math
 
@@ -35,11 +44,11 @@ class TaylorGreenMhdConfig:
 
     @property
     def viscosity(self):
-        return self.domain_length / self.reynolds
+        return 1.0 / self.reynolds
 
     @property
     def resistivity(self):
-        return self.domain_length / self.magnetic_reynolds
+        return 1.0 / self.magnetic_reynolds
 
     @property
     def steps(self):
@@ -55,9 +64,10 @@ def magnetic_reynolds_to_resistivity(
     velocity_amplitude=1.0,
     domain_length=2.0 * math.pi,
 ):
+    del domain_length  # kept for API compatibility; nondimensional η = U_ref / Rm
     if magnetic_reynolds <= 0.0:
         raise ValueError("magnetic_reynolds must be positive")
-    return float((velocity_amplitude * domain_length) / magnetic_reynolds)
+    return float(velocity_amplitude / magnetic_reynolds)
 
 
 def resistivity_to_magnetic_reynolds(
@@ -65,11 +75,12 @@ def resistivity_to_magnetic_reynolds(
     velocity_amplitude=1.0,
     domain_length=2.0 * math.pi,
 ):
+    del domain_length  # kept for API compatibility; nondimensional Rm = U_ref / η
     if resistivity < 0.0:
         raise ValueError("resistivity must be nonnegative")
     if resistivity == 0.0:
         return float("inf")
-    return float((velocity_amplitude * domain_length) / resistivity)
+    return float(velocity_amplitude / resistivity)
 
 
 def validate_timestep(

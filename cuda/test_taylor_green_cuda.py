@@ -15,10 +15,14 @@ LENGTH = 2.0 * math.pi
 
 
 class TaylorGreenCudaTests(unittest.TestCase):
+    def test_viscosity_is_nondimensional(self):
+        config = TaylorGreenConfig(reynolds=250.0)
+        self.assertAlmostEqual(config.viscosity, 1.0 / 250.0)
+
     def test_spectral_step_preserves_finite_values(self):
         grid = SpectralGrid(8, LENGTH)
         operator = CupySpectralOperator(grid)
-        integrator = RK4Integrator(operator, 0.005, LENGTH / 100.0)
+        integrator = RK4Integrator(operator, 0.005, 1.0 / 100.0)
         velocity_hat = grid.to_spectral(TaylorGreenInitialCondition(LENGTH).create(8))
         velocity_hat = integrator.step(velocity_hat)
         self.assertTrue(bool(cp.all(cp.isfinite(velocity_hat))))
