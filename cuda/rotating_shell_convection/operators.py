@@ -43,8 +43,7 @@ class ShellOperators:
         return out
 
     def grid_to_spectral(self, grid_field):
-        coeffs = self.sht.forward_radial_stack(grid_field)
-        return coeffs * self.sht.dealias_mask[None, :]
+        return self.sht.forward_radial_stack(grid_field)
 
     def spectral_to_grid(self, coeffs):
         return self.sht.inverse_radial_stack(coeffs)

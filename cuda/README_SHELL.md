@@ -18,6 +18,9 @@ Reference scales: length `d` (gap), time `1/Ω`, velocity `dΩ`, rotation `Ω ê
 - Nonlinear momentum: grid force `F = −(u·∇)u − 2 ê_z×u + buoyancy ê_r`, then
   `spat_to_qst` of `curl curl F` (poloidal) and `curl F` (toroidal)
 - Angular derivatives use `∂Y/∂θ` and `(im/sinθ)Y`, not finite differences
+- MagIC `nalias=20` / Orszag 3/2 dealiasing: collocation uses
+  `N_θ = ceil(3/2 (L_max+1))`, `N_φ = 2 N_θ`. Spectral truncation is `L_max`
+  (quadratic aliases land above `L_max` and are not stored)
 - BCs: no-slip `W = ∂W/∂r = Z = 0`; `θ = 1` at inner `r = η` (last Chebyshev
   node) and `θ = 0` at outer `r = 1` (first node)
 

@@ -38,10 +38,10 @@ class SpectralAngularOps:
 
     def _coeffs_from_grid(self, field):
         flat = field.reshape(self.nr, -1)
-        return (self.forward_mat @ flat.T).T
+        return self.sht.dealias((self.forward_mat @ flat.T).T)
 
     def _grid_from_coeffs(self, coeffs):
-        flat = (self.inverse_mat @ coeffs.T).T
+        flat = (self.inverse_mat @ self.sht.dealias(coeffs).T).T
         return flat.reshape(self.nr, self.n_theta, self.n_phi).real
 
     def coeffs_dr(self, coeffs):

@@ -104,4 +104,5 @@ class ImexEulerIntegrator:
         theta_new = self._solve_temperature(
             theta_rhs, config.thermal_diffusion_coeff
         )
-        return w_new, z_new, theta_new
+        dealias = self.operators.sht.dealias
+        return dealias(w_new), dealias(z_new), dealias(theta_new)

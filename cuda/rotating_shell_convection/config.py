@@ -60,12 +60,18 @@ class ShellConvectionConfig:
         return 2.0
 
     @property
-    def n_phi(self) -> int:
-        return 2 * (self.l_max + 1)
+    def n_theta(self) -> int:
+        from .sht import collocation_grid_shape
+
+        n_theta, _ = collocation_grid_shape(self.l_max)
+        return n_theta
 
     @property
-    def n_theta(self) -> int:
-        return self.l_max + 1
+    def n_phi(self) -> int:
+        from .sht import collocation_grid_shape
+
+        _, n_phi = collocation_grid_shape(self.l_max)
+        return n_phi
 
     @property
     def n_lm(self) -> int:

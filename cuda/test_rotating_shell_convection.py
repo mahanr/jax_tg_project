@@ -10,7 +10,11 @@ from rotating_shell_convection.integrator import ImexEulerIntegrator
 from rotating_shell_convection.operators import ShellOperators
 from rotating_shell_convection.radial import RadialGrid, map_xi_to_r
 from rotating_shell_convection.simulation import ShellConvectionSimulation
-from rotating_shell_convection.sht import SphericalHarmonicTransform, _lm_to_flat
+from rotating_shell_convection.sht import (
+    SphericalHarmonicTransform,
+    _lm_to_flat,
+    collocation_grid_shape,
+)
 
 
 class RotatingShellConvectionTests(unittest.TestCase):
@@ -20,6 +24,16 @@ class RotatingShellConvectionTests(unittest.TestCase):
         self.assertAlmostEqual(config.thermal_diffusion_coeff, 1e-4 / 2.0)
         expected_buoyancy = 1e5 * (1e-4) ** 2 / 2.0
         self.assertAlmostEqual(config.buoyancy_coeff, expected_buoyancy)
+
+    def test_collocation_grid_three_halves_rule(self):
+        for l_max in (4, 8, 31):
+            n_theta, n_phi = collocation_grid_shape(l_max)
+            self.assertGreaterEqual(n_theta, int(np.ceil(1.5 * l_max)))
+            self.assertGreaterEqual(n_phi, 3 * l_max)
+            self.assertEqual(n_phi, 2 * n_theta)
+            config = ShellConvectionConfig(l_max=l_max, nr=8)
+            self.assertEqual(config.n_theta, n_theta)
+            self.assertEqual(config.n_phi, n_phi)
 
     def test_sht_roundtrip(self):
         sht = SphericalHarmonicTransform(8, xp=cp)
@@ -110,7 +124,7 @@ class RotatingShellConvectionTests(unittest.TestCase):
         rng = np.random.RandomState(1)
         w = cp.zeros((geometry.nr, geometry.n_lm), dtype=cp.complex128)
         z = cp.zeros_like(w)
-        for l in range(1, 5):
+        for l in range(1, geometry.l_max + 1):
             w[:, _lm_to_flat(l, 0)] = rng.normal()
             z[:, _lm_to_flat(l, 0)] = rng.normal()
         u = operators.pt.velocity_from_wz_coeffs(w, z)

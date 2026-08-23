@@ -20,6 +20,13 @@ def _n_lm(l_max):
     return (l_max + 1) ** 2
 
 
+def collocation_grid_shape(l_max):
+    """MagIC nalias=20 / Orszag 3/2: N_θ = ceil(3/2 (L+1)), N_φ = 2 N_θ."""
+    n_theta = int(np.ceil(1.5 * (l_max + 1)))
+    n_phi = 2 * n_theta
+    return n_theta, n_phi
+
+
 def _build_transform_matrices(l_max, mu_host, phi_host, weights_host):
     """
     Discrete orthonormal SHT plus QST synthesis/analysis matrices.
@@ -92,8 +99,7 @@ class SphericalHarmonicTransform:
     def __init__(self, l_max: int, xp=cp):
         self.l_max = l_max
         self.xp = xp
-        self.n_theta = l_max + 1
-        self.n_phi = 2 * (l_max + 1)
+        self.n_theta, self.n_phi = collocation_grid_shape(l_max)
         self.n_lm = _n_lm(l_max)
         self.n_lm = self.n_lm
 
@@ -136,9 +142,14 @@ class SphericalHarmonicTransform:
         self.ll1_inv = 1.0 / self.ll1
         self.ll1_inv = self.ll1_inv * (self.l_values > 0)
 
+        # Physical truncation is l_max; the 3/2 grid supplies dealiasing.
         self.dealias_mask = xp.ones(self.n_lm, dtype=xp.float64)
-        cutoff = int(2.0 * l_max / 3.0)
-        self.dealias_mask = self.dealias_mask * (self.l_values <= cutoff)
+        self.dealias_mask = self.dealias_mask * (self.l_values <= l_max)
+
+    def dealias(self, coeffs):
+        if coeffs.ndim == 1:
+            return coeffs * self.dealias_mask
+        return coeffs * self.dealias_mask[None, :]
 
     def forward(self, field_grid):
         flat = field_grid.reshape(-1)
@@ -153,11 +164,11 @@ class SphericalHarmonicTransform:
     def forward_radial_stack(self, field_grid):
         nr = field_grid.shape[0]
         flat = field_grid.reshape(nr, -1)
-        return (self.forward_mat @ flat.T).T
+        return self.dealias((self.forward_mat @ flat.T).T)
 
     def inverse_radial_stack(self, coeffs):
         nr = coeffs.shape[0]
-        flat = (self.inverse_mat @ coeffs.T).T
+        flat = (self.inverse_mat @ self.dealias(coeffs).T).T
         return flat.reshape(nr, self.n_theta, self.n_phi).real
 
     inverse_radial_stack = inverse_radial_stack
@@ -167,10 +178,10 @@ class SphericalHarmonicTransform:
 
     def synthesize_dtheta(self, coeffs):
         nr = coeffs.shape[0]
-        flat = (self.dYdtheta_mat @ coeffs.T).T
+        flat = (self.dYdtheta_mat @ self.dealias(coeffs).T).T
         return flat.reshape(nr, self.n_theta, self.n_phi).real
 
     def synthesize_dphi_over_sintheta(self, coeffs):
         nr = coeffs.shape[0]
-        flat = (self.imYsin_mat @ coeffs.T).T
+        flat = (self.imYsin_mat @ self.dealias(coeffs).T).T
         return flat.reshape(nr, self.n_theta, self.n_phi).real
