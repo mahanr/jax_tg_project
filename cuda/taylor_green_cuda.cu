@@ -32,13 +32,27 @@ __global__ void filter(cufftComplex *a, int n) {
     if(!kept(x,y,z,n)) a[q]=make_cuFloatComplex(0,0);
 }
 
-__global__ void derivative(cufftComplex *out, const cufftComplex *in, int n, int direction) {
+__global__ void derivatives(cufftComplex *out, const cufftComplex *in, int n) {
     int q=blockIdx.x*blockDim.x+threadIdx.x, nc=n*n*(n/2+1);
     if(q>=3*nc) return;
     int p=q%nc, z=p%(n/2+1), y=(p/(n/2+1))%n, x=p/(n*(n/2+1));
-    float k=direction==0?mode(x,n):(direction==1?mode(y,n):z);
+    float kx=mode(x,n), ky=mode(y,n), kz=z;
     cufftComplex v=in[q];
-    out[q]=make_cuFloatComplex(-k*v.y,k*v.x);
+    out[q]=make_cuFloatComplex(-kx*v.y,kx*v.x);
+    out[3*nc+q]=make_cuFloatComplex(-ky*v.y,ky*v.x);
+    out[6*nc+q]=make_cuFloatComplex(-kz*v.y,kz*v.x);
+}
+
+static cufftHandle make_plan_many(int n, int batch, cufftType type) {
+    cufftHandle plan;
+    int dims[3]={n,n,n};
+    int n3=n*n*n, nc=n*n*(n/2+1);
+    if(type==CUFFT_R2C) {
+        FFT_OK(cufftPlanMany(&plan,3,dims,nullptr,1,n3,nullptr,1,nc,CUFFT_R2C,batch));
+    } else {
+        FFT_OK(cufftPlanMany(&plan,3,dims,nullptr,1,nc,nullptr,1,n3,CUFFT_C2R,batch));
+    }
+    return plan;
 }
 
 __global__ void nonlinear(const float *u, const float *g, float *nlin, int n3) {
@@ -90,25 +104,26 @@ __global__ void rk4(float *u,const float *a,const float *b,const float *c,const 
 }
 
 struct Solver {
-    int n,n3,nc; float dt,nu; float *u,*tmp,*k1,*k2,*k3,*k4,*nlin,*grad,*grad_raw; cufftComplex *uh,*nh,*work;
-    cufftHandle r2c,c2r;
+    int n,n3,nc; float dt,nu; float *u,*tmp,*k1,*k2,*k3,*k4,*nlin,*grad,*grad_raw; cufftComplex *uh,*nh,*work,*grad_hat;
+    cufftHandle r2c,c2r,c2r9;
     Solver(int N,float step,float viscosity):n(N),n3(N*N*N),nc(N*N*(N/2+1)),dt(step),nu(viscosity) {
         CUDA_OK(cudaMalloc(&u,3ull*n3*sizeof(float))); CUDA_OK(cudaMalloc(&tmp,3ull*n3*sizeof(float)));
         CUDA_OK(cudaMalloc(&k1,3ull*n3*sizeof(float))); CUDA_OK(cudaMalloc(&k2,3ull*n3*sizeof(float)));
         CUDA_OK(cudaMalloc(&k3,3ull*n3*sizeof(float))); CUDA_OK(cudaMalloc(&k4,3ull*n3*sizeof(float)));
         CUDA_OK(cudaMalloc(&nlin,3ull*n3*sizeof(float))); CUDA_OK(cudaMalloc(&grad,9ull*n3*sizeof(float))); CUDA_OK(cudaMalloc(&grad_raw,9ull*n3*sizeof(float)));
         CUDA_OK(cudaMalloc(&uh,3ull*nc*sizeof(cufftComplex))); CUDA_OK(cudaMalloc(&nh,3ull*nc*sizeof(cufftComplex)));
-        CUDA_OK(cudaMalloc(&work,3ull*nc*sizeof(cufftComplex)));
-        FFT_OK(cufftPlan3d(&r2c,n,n,n,CUFFT_R2C)); FFT_OK(cufftPlan3d(&c2r,n,n,n,CUFFT_C2R));
+        CUDA_OK(cudaMalloc(&work,3ull*nc*sizeof(cufftComplex))); CUDA_OK(cudaMalloc(&grad_hat,9ull*nc*sizeof(cufftComplex)));
+        r2c=make_plan_many(n,3,CUFFT_R2C); c2r=make_plan_many(n,3,CUFFT_C2R); c2r9=make_plan_many(n,9,CUFFT_C2R);
         int b=(n3+255)/256; initialize<<<b,256>>>(u,n); CUDA_OK(cudaGetLastError());
     }
-    ~Solver(){ cufftDestroy(r2c); cufftDestroy(c2r); cudaFree(u);cudaFree(tmp);cudaFree(k1);cudaFree(k2);cudaFree(k3);cudaFree(k4);cudaFree(nlin);cudaFree(grad);cudaFree(grad_raw);cudaFree(uh);cudaFree(nh);cudaFree(work); }
-    void transform_r2c(const float *in,cufftComplex *out){ for(int c=0;c<3;c++) FFT_OK(cufftExecR2C(r2c,const_cast<float*>(in)+c*n3,out+c*nc)); }
-    void transform_c2r(cufftComplex *in,float *out){ for(int c=0;c<3;c++) FFT_OK(cufftExecC2R(c2r,in+c*nc,out+c*n3)); int b=(3*n3+255)/256; scale<<<b,256>>>(out,3*n3,1.0f/n3); }
+    ~Solver(){ cufftDestroy(r2c); cufftDestroy(c2r); cufftDestroy(c2r9); cudaFree(u);cudaFree(tmp);cudaFree(k1);cudaFree(k2);cudaFree(k3);cudaFree(k4);cudaFree(nlin);cudaFree(grad);cudaFree(grad_raw);cudaFree(uh);cudaFree(nh);cudaFree(work);cudaFree(grad_hat); }
+    void transform_r2c(const float *in,cufftComplex *out){ FFT_OK(cufftExecR2C(r2c,const_cast<float*>(in),out)); }
+    void transform_c2r(cufftComplex *in,float *out){ FFT_OK(cufftExecC2R(c2r,in,out)); int b=(3*n3+255)/256; scale<<<b,256>>>(out,3*n3,1.0f/n3); }
+    void transform_c2r9(cufftComplex *in,float *out){ FFT_OK(cufftExecC2R(c2r9,in,out)); int b=(9*n3+255)/256; scale<<<b,256>>>(out,9*n3,1.0f/n3); }
     void rhs(const float *state,float *out){
         int rb=(n3+255)/256, cb=(3*nc+255)/256;
         transform_r2c(state,uh); filter<<<cb,256>>>(uh,n);
-        for(int d=0;d<3;d++){ derivative<<<cb,256>>>(work,uh,n,d); transform_c2r(work,grad_raw+3*d*n3); }
+        derivatives<<<cb,256>>>(grad_hat,uh,n); transform_c2r9(grad_hat,grad_raw);
         transpose_gradients<<<(9*n3+255)/256,256>>>(grad_raw,grad, n3);
         nonlinear<<<rb,256>>>(state,grad,nlin); transform_r2c(nlin,nh); filter<<<cb,256>>>(nh,n);
         project_and_diffuse<<<cb,256>>>(work,nh,uh,n,nu); transform_c2r(work,out); CUDA_OK(cudaGetLastError());

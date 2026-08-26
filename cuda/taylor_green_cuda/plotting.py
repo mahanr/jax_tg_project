@@ -1,3 +1,5 @@
+import os
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -5,6 +7,9 @@ import cupy as cp
 
 
 def save_plots(state_hat, diagnostics, n, grid, total_time=None):
+    slice_path = os.path.abspath("taylor_green_cuda_slice.png")
+    diagnostics_path = os.path.abspath("taylor_green_cuda_diagnostics.png")
+
     slice_data = cp.asnumpy(grid.to_real(state_hat)[:, :, :, n // 2])
     figure, axes = plt.subplots(1, 3, figsize=(12, 4))
     for component, axis in enumerate(axes):
@@ -12,7 +17,7 @@ def save_plots(state_hat, diagnostics, n, grid, total_time=None):
         axis.set_title(f"u{component + 1} slice")
         figure.colorbar(image, ax=axis)
     figure.tight_layout()
-    figure.savefig("taylor_green_cuda_slice.png", dpi=200)
+    figure.savefig(slice_path, dpi=200)
     plt.close(figure)
 
     times = diagnostics.times
@@ -30,5 +35,7 @@ def save_plots(state_hat, diagnostics, n, grid, total_time=None):
     enstrophy_axis.grid(True, alpha=0.3)
     energy_axis.set_xlim(times[0], time_max)
     figure.tight_layout()
-    figure.savefig("taylor_green_cuda_diagnostics.png", dpi=200)
+    figure.savefig(diagnostics_path, dpi=200)
     plt.close(figure)
+    print(f"Wrote {slice_path}")
+    print(f"Wrote {diagnostics_path}")

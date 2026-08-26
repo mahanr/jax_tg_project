@@ -26,6 +26,7 @@ class TaylorGreenCudaTests(unittest.TestCase):
         velocity_hat = grid.to_spectral(TaylorGreenInitialCondition(LENGTH).create(8))
         velocity_hat = integrator.step(velocity_hat)
         self.assertTrue(bool(cp.all(cp.isfinite(velocity_hat))))
+        self.assertEqual(velocity_hat.dtype, cp.complex64)
 
     def test_short_run_is_finite(self):
         config = TaylorGreenConfig(
@@ -41,7 +42,26 @@ class TaylorGreenCudaTests(unittest.TestCase):
         )
         state_hat, diagnostics = simulation.run()
         self.assertTrue(bool(cp.all(cp.isfinite(state_hat))))
+        self.assertEqual(state_hat.dtype, cp.complex64)
         self.assertEqual(len(diagnostics.times), 3)
+
+    def test_project_and_diffuse_matches_unfused(self):
+        grid = SpectralGrid(8, LENGTH)
+        operator = CupySpectralOperator(grid)
+        velocity_hat = grid.to_spectral(TaylorGreenInitialCondition(LENGTH).create(8))
+        nonlinear_hat = (velocity_hat * cp.complex64(0.3 + 0.1j)).astype(velocity_hat.dtype, copy=False)
+        viscosity = 1.0 / 100.0
+        fused = operator.project_and_diffuse(nonlinear_hat, velocity_hat, viscosity)
+        masked = nonlinear_hat * grid.dealias_mask
+        safe_k_squared = cp.where(grid.k_squared == 0.0, 1.0, grid.k_squared)
+        k_dot = grid.kx * masked[0] + grid.ky * masked[1] + grid.kz * masked[2]
+        projected = masked - cp.stack((
+            grid.kx * k_dot / safe_k_squared,
+            grid.ky * k_dot / safe_k_squared,
+            grid.kz * k_dot / safe_k_squared,
+        ))
+        reference = -projected - viscosity * grid.k_squared * velocity_hat
+        self.assertTrue(bool(cp.allclose(fused, reference, rtol=1e-6, atol=1e-8)))
 
 
 if __name__ == "__main__":

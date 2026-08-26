@@ -27,14 +27,19 @@ class TaylorGreenSimulation:
         if step == self.config.steps:
             time_value = self.config.total_time
         energy, value = self.diagnostics.record(time_value, self.state)
+        now = time.perf_counter()
+        interval = now - self._last_record_wall
+        self._last_record_wall = now
         print(f"Save time step: {step}, time: {time_value:.6f}, "
-              f"enstrophy: {value:.8e}")
+              f"enstrophy: {value:.8e}, interval: {interval:.2f} s")
         return energy, value
 
     def run(self):
         config = self.config
+        self._last_record_wall = time.perf_counter()
         self.diagnostics.record(0.0, self.state)
         start = time.perf_counter()
+        self._last_record_wall = start
         for step in range(1, config.steps + 1):
             self.state = self.integrator.step(self.state)
             self.state = self.grid.dealias(self.state)
