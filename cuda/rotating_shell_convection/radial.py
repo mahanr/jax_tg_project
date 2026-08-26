@@ -10,7 +10,7 @@ def chebyshev_nodes(nr: int, xp=cp):
     return xp.cos(xp.pi * indices / (nr - 1))
 
 
-def map_xi_to_r(xi, eta, xp=cp):
+def map_xi_to_r(xi, eta, xp=cp):  # pylint: disable=unused-argument
     """Map xi in [-1, 1] to physical radius r in [eta, 1]."""
     return 0.5 * ((1.0 - eta) * xi + (1.0 + eta))
 

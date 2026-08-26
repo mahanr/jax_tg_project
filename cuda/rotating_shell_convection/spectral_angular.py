@@ -44,6 +44,12 @@ class SpectralAngularOps:
         flat = (self.inverse_mat @ self.sht.dealias(coeffs).T).T
         return flat.reshape(self.nr, self.n_theta, self.n_phi).real
 
+    def coeffs_from_grid(self, field):
+        return self._coeffs_from_grid(field)
+
+    def grid_from_coeffs(self, coeffs):
+        return self._grid_from_coeffs(coeffs)
+
     def coeffs_dr(self, coeffs):
         return self.radial.d_r @ coeffs
 

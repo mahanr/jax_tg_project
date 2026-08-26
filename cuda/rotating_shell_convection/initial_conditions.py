@@ -69,7 +69,7 @@ class ShellInitialCondition:
         for i in range(nr):
             theta_grid[i] = conductive[i]
 
-        rng = np.random.RandomState(42)
+        rng = np.random.default_rng(42)
         noise = 0.01 * self.perturbation_amplitude * cp.asarray(
             rng.standard_normal((nr, n_theta, n_phi)), dtype=cp.float64
         )

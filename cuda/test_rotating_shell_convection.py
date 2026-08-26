@@ -6,9 +6,8 @@ import numpy as np
 from rotating_shell_convection.config import ShellConvectionConfig
 from rotating_shell_convection.geometry import ShellGeometry
 from rotating_shell_convection.initial_conditions import ShellInitialCondition
-from rotating_shell_convection.integrator import ImexEulerIntegrator
 from rotating_shell_convection.operators import ShellOperators
-from rotating_shell_convection.radial import RadialGrid, map_xi_to_r
+from rotating_shell_convection.radial import RadialGrid
 from rotating_shell_convection.simulation import ShellConvectionSimulation
 from rotating_shell_convection.sht import (
     SphericalHarmonicTransform,
@@ -37,7 +36,7 @@ class RotatingShellConvectionTests(unittest.TestCase):
 
     def test_sht_roundtrip(self):
         sht = SphericalHarmonicTransform(8, xp=cp)
-        rng = np.random.RandomState(0)
+        rng = np.random.default_rng(0)
         coeffs = cp.asarray(
             rng.standard_normal(sht.n_lm) + 1j * rng.standard_normal(sht.n_lm),
             dtype=cp.complex128,
@@ -121,7 +120,7 @@ class RotatingShellConvectionTests(unittest.TestCase):
         config = ShellConvectionConfig(l_max=6, nr=12, ra=1e4, ek=1e-3)
         geometry = ShellGeometry(config)
         operators = ShellOperators(geometry, config)
-        rng = np.random.RandomState(1)
+        rng = np.random.default_rng(1)
         w = cp.zeros((geometry.nr, geometry.n_lm), dtype=cp.complex128)
         z = cp.zeros_like(w)
         for l in range(1, geometry.l_max + 1):

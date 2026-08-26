@@ -39,8 +39,8 @@ class PoloidalToroidalOps:
         return cp.stack((u_r, u_theta, u_phi))
 
     def velocity_from_wz(self, w_grid, z_grid):
-        w_coeffs = self.angular._coeffs_from_grid(w_grid)
-        z_coeffs = self.angular._coeffs_from_grid(z_grid)
+        w_coeffs = self.angular.coeffs_from_grid(w_grid)
+        z_coeffs = self.angular.coeffs_from_grid(z_grid)
         return self.velocity_from_wz_coeffs(w_coeffs, z_coeffs)
 
     def velocity_from_wz_grid(self, w_grid, z_grid):
@@ -61,11 +61,11 @@ class PoloidalToroidalOps:
         ))
 
     def l_horizontal_laplacian(self, field):
-        coeffs = self.angular._coeffs_from_grid(field)
+        coeffs = self.angular.coeffs_from_grid(field)
         ll1 = self.geometry.l_values[None, :]
-        return -self.angular._grid_from_coeffs(-ll1 * coeffs)
+        return -self.angular.grid_from_coeffs(-ll1 * coeffs)
 
-    def spectral_divergence_max(self, w_coeffs, z_coeffs):
+    def spectral_divergence_max(self, w_coeffs, _z_coeffs):
         angular = self.angular
         r = self.r[:, None]
         dw = angular.coeffs_dr(w_coeffs)

@@ -21,6 +21,7 @@ class TaylorGreenSimulation:
         self.state = self.grid.to_spectral(self.initial_condition.create(self.config.n))
         self.diagnostics = Diagnostics(self.operator)
         self.make_plots = make_plots
+        self._last_record_wall = 0.0
 
     def record(self, step):
         time_value = step * self.config.dt
@@ -36,10 +37,9 @@ class TaylorGreenSimulation:
 
     def run(self):
         config = self.config
-        self._last_record_wall = time.perf_counter()
-        self.diagnostics.record(0.0, self.state)
         start = time.perf_counter()
         self._last_record_wall = start
+        self.diagnostics.record(0.0, self.state)
         for step in range(1, config.steps + 1):
             self.state = self.integrator.step(self.state)
             self.state = self.grid.dealias(self.state)

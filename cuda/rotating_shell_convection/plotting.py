@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import cupy as cp
 
 
-def save_plots(w_coeffs, z_coeffs, theta_coeffs, diagnostics, geometry):
+def save_plots(_w_coeffs, _z_coeffs, theta_coeffs, diagnostics, geometry):
     theta_grid = geometry.sht.inverse_radial_stack(theta_coeffs)
     mid = geometry.nr // 2
     theta_slice = cp.asnumpy(theta_grid[mid])
